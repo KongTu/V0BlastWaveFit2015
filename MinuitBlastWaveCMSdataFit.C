@@ -25,13 +25,13 @@ int getNdf;
 const double R = 1.0;
 const double dr = 1e-2; // FIXME
 
-double integral(double beta_s, double T, double n, double pt, double mt)
+double integral(double beta_T, double T, double n, double pt, double mt)
 {
   
   double s = 0.;
   for(double r = dr/2; r < R; r += dr)
   {
-    double beta_r = beta_s * TMath::Power((r/R),n);
+    double beta_r = (beta_T*(n+2)/2) * TMath::Power((r/R),n);
     double rho = TMath::ATanH(beta_r);
 
     s += r * dr * TMath::BesselK1((mt*cosh(rho))/T) * TMath::BesselI0((pt*sinh(rho))/T);
@@ -45,7 +45,7 @@ void function(int &npar, double *gin, double &f, double *par, int flag)
   double aka    = par[0];
   double aka1   = par[4];
   double T      = par[2];
-  double beta_s = par[1];
+  double beta_T = par[1];
   double n = par[3];
 
   double chi2 = 0.;
@@ -60,7 +60,7 @@ void function(int &npar, double *gin, double &f, double *par, int flag)
     double a = 0.;
     a = aka;
   
-    double theo = a * mt * integral(beta_s, T, n, pt, mt);
+    double theo = a * mt * integral(beta_T, T, n, pt, mt);
     double q = (y[i] - theo)/ey[i];
 
     chi2 += q*q;
@@ -68,18 +68,18 @@ void function(int &npar, double *gin, double &f, double *par, int flag)
 
   for(i = 0; i < int(x1.size()); i++){
 
-  	double m1 = 1.115;
+    double m1 = 1.115;
 
-  	double pt1 = x1[i];
-  	double mt1 = sqrt(m1*m1 + pt1*pt1);
+    double pt1 = x1[i];
+    double mt1 = sqrt(m1*m1 + pt1*pt1);
 
-  	double a1 = 0.;
-  	a1 = aka1;
+    double a1 = 0.;
+    a1 = aka1;
 
-  	double theo1 = a1 * mt1 * integral(beta_s,T,n,pt1,mt1);
-  	double q1 = (y1[i]-theo1)/ey1[i];
+    double theo1 = a1 * mt1 * integral(beta_T,T,n,pt1,mt1);
+    double q1 = (y1[i]-theo1)/ey1[i];
 
-  	chi2 += q1*q1;
+    chi2 += q1*q1;
   }
 
   f = chi2;
@@ -125,8 +125,11 @@ void MinuitBlastWaveCMSdataFit(){
 
   gStyle->SetErrorX(0);
 
-  TFile* file = new TFile("/Users/kongkong/2015Research/Spectra/pPb2013/rpyDependence/files/MidRpy0_0.8_v1.root");
+  TFile* file = new TFile("/Users/kongkong/2015Research/Spectra/pPb2013/rpyDependence/files/MidRpy0_0.8_MultEff_noEffError_v3.root");
+  //TFile* file = new TFile("/Users/kongkong/2015Research/Spectra/pPb2013/integratedEta/files/MidRpy0_0.8_8MultSpectra_EPOS_30M_TOTAL_25ksBins_v4.root");
+  //wrong hist:
   
+
   TH1D* ksSpectra[8];
   TH1D* laSpectra[8];
 
@@ -158,8 +161,8 @@ void MinuitBlastWaveCMSdataFit(){
   TCanvas* c1 = new TCanvas();
     c1->Divide(4,2,0,0);
 
-  double beta_s[8],Tkin[8],aka[8],aka1[8],n[8];
-  double ebeta_s[8],eTkin[8],eaka[8],eaka1[8],en[8];
+  double beta_T[8],Tkin[8],aka[8],aka1[8],n[8];
+  double ebeta_T[8],eTkin[8],eaka[8],eaka1[8],en[8];
 
   stringstream f1Name;
   stringstream f2Name;
@@ -218,7 +221,6 @@ void MinuitBlastWaveCMSdataFit(){
 
   TGraph* test[8];
   
-
   for(int mult = 0; mult < 8; mult++){
 
       x.clear();
@@ -234,22 +236,23 @@ void MinuitBlastWaveCMSdataFit(){
       //ks pt strats at 0.3-0.4
       //la pt starts at 0.6-0.8
       //all correspond to pt = 0;
+      //wrong histogram: pt =1 for ks, pt = 2 for lam;
 
-      for (int pt = 0; pt < 14; pt++){
+      for (int pt = 0; pt < 10; pt++){
 
         x.push_back( ks_ptbincenter[pt] );
         ex.push_back(0.0);
         y.push_back( ksSpectra[mult]->GetBinContent(pt+3) );
-        ey.push_back( ksSpectra[mult]->GetBinError(pt+3) );
+        ey.push_back( (ksSpectra[mult]->GetBinError(pt+3)) );
         //ey.push_back( 0.1 );
       }
 
-      for(pt = 0; pt < 14; pt++){
+      for(pt = 0; pt < 12; pt++){
 
           x1.push_back( la_ptbincenter[pt] );
           ex1.push_back(0.0);
           y1.push_back( laSpectra[mult]->GetBinContent(pt+2) );
-          ey1.push_back( laSpectra[mult]->GetBinError(pt+2) );
+          ey1.push_back( (laSpectra[mult]->GetBinError(pt+2)) );
           //ey1.push_back( 0.1 );
       }
 
@@ -257,33 +260,35 @@ void MinuitBlastWaveCMSdataFit(){
    * simultaneous fit for K0s and Lambda:
    */
 
-      TMinuit * gMinuit[9];
+      TMinuit * gMinuit[8];
       gMinuit[mult] = new TMinuit(5);
 
       //set the function to minimize with minuit;
       gMinuit[mult]->SetFCN(function);
 
       double arglist[10];
-      arglist[4] = 0.001;
+      arglist[0] = -1;
+
       gMinuit[mult]->mnexcm("SET ERR", arglist, 1, 0);
 
-      gMinuit[mult]->mnparm(0, "aka",    10,   0.1,  1,    10000, 0);
-      gMinuit[mult]->mnparm(1, "beta_s", 0.70, 0.01, 0.15,   1.0,   0);
-      gMinuit[mult]->mnparm(2, "Tkin",   0.15, 0.01, 0.05,   1.0,   0);
-      gMinuit[mult]->mnparm(3, "n",      1.0,  0.01, 0.1,    10.0,  0);
-      gMinuit[mult]->mnparm(4, "aka1",   10,   0.1,  1,    10000, 0);
+      gMinuit[mult]->mnparm(0, "aka",    10,    0.1,   1,    10000, 0);
+      gMinuit[mult]->mnparm(1, "beta_T", 0.32,   0.0001,  0.005, 1.0,   0);
+      gMinuit[mult]->mnparm(2, "Tkin",   0.17,  0.0001,  0.005, 1.0,   0);
+      gMinuit[mult]->mnparm(3, "n",      1.0,   0.01,  0.1,  10.0,  0);
+      gMinuit[mult]->mnparm(4, "aka1",   10,    0.1,   1,    10000, 0);
 
       gMinuit[mult]->mnexcm("MIGRAD",    arglist,  1,   0);
+      gMinuit[mult]->mnexcm("MINOS",     arglist,  1,   0);
       gMinuit[mult]->mnexcm("CALL FCN",  arglist,  1,   0);
       //gMinuit[mult]->mnexcm("HESSE",     arglist,  1,   0);
 
       gMinuit[mult]->GetParameter(0, aka[mult],    eaka[mult]);
-      gMinuit[mult]->GetParameter(1, beta_s[mult], ebeta_s[mult]);
+      gMinuit[mult]->GetParameter(1, beta_T[mult], ebeta_T[mult]);
       gMinuit[mult]->GetParameter(2, Tkin[mult],   eTkin[mult]);
       gMinuit[mult]->GetParameter(3, n[mult],      en[mult]);
       gMinuit[mult]->GetParameter(4, aka1[mult],   eaka1[mult]);
 
-      gMinuit[mult]->SetErrorDef(4);
+      gMinuit[mult]->SetErrorDef(1);
       test[mult] = (TGraph*)gMinuit[mult]->Contour(100,1,2);
       //test->SetFillColor(42);
 
@@ -291,11 +296,11 @@ void MinuitBlastWaveCMSdataFit(){
    * define the fit function by using the parameters from fit:
    */
 
-      double xmin = 0.45;
-      double xmax = 2.3;
+      double xmin = 0.3;
+      double xmax = 1.5;
 
-      double xmin1 = 1.0;
-      double xmax1 = 4.0;
+      double xmin1 = 0.6;
+      double xmax1 = 3.0;
 
       f1Name.str("");
       f2Name.str("");
@@ -307,13 +312,13 @@ void MinuitBlastWaveCMSdataFit(){
       f2Name << mult+1;
   
       f1[mult] = new TF1(f1Name.str().c_str(),MyFunc,xmin,xmax,4);
-      f1[mult]->SetParameter(0,beta_s[mult]);
+      f1[mult]->SetParameter(0,beta_T[mult]);
       f1[mult]->SetParameter(1,Tkin[mult]);
       f1[mult]->SetParameter(2,aka[mult]);
       f1[mult]->SetParameter(3,n[mult]);
 
       f2[mult] = new TF1(f2Name.str().c_str(),MyFunc1,xmin1,xmax1,4);
-      f2[mult]->SetParameter(0,beta_s[mult]);
+      f2[mult]->SetParameter(0,beta_T[mult]);
       f2[mult]->SetParameter(1,Tkin[mult]);
       f2[mult]->SetParameter(2,aka1[mult]);
       f2[mult]->SetParameter(3,n[mult]);
@@ -342,29 +347,31 @@ void MinuitBlastWaveCMSdataFit(){
       f2[mult]->Draw("same");
       f1[mult]->Draw("same");
 
-      for(int pt = 0; pt < 14; pt++){
+      for(int pt = 0; pt < 10; pt++){
       
         double mass = 0.497;
 
         double temp = 0.;
         double mt = sqrt(ks_ptbincenter[pt]*ks_ptbincenter[pt]+mass*mass);
 
-        temp = aka[mult] * mt * integral(beta_s[mult],Tkin[mult],n[mult],ks_ptbincenter[pt],mt);
+        temp = aka[mult] * mt * integral(beta_T[mult],Tkin[mult],n[mult],ks_ptbincenter[pt],mt);
 
         f1_hist[mult]->SetBinContent(pt+3, temp);
+        f1_hist[mult]->SetBinError(pt+3, 0.0);
 
       }
 
-      for(int pt = 0; pt < 14; pt++){
+      for(int pt = 0; pt < 12; pt++){
       
         double mass = 1.115;
 
         double temp = 0.;
         double mt = sqrt(la_ptbincenter[pt]*la_ptbincenter[pt]+mass*mass);
 
-        temp = aka1[mult] * mt * integral(beta_s[mult],Tkin[mult],n[mult],la_ptbincenter[pt],mt);
+        temp = aka1[mult] * mt * integral(beta_T[mult],Tkin[mult],n[mult],la_ptbincenter[pt],mt);
 
         f2_hist[mult]->SetBinContent(pt+2, temp);
+        f2_hist[mult]->SetBinError(pt+2, 0.0);
 
       }
 
@@ -437,7 +444,7 @@ void MinuitBlastWaveCMSdataFit(){
     f1_hist[mult]->SetMarkerStyle(20);
     f1_hist[mult]->SetMarkerColor(kBlue);
     f1_hist[mult]->SetMarkerSize(1.3);
-    f1_hist[mult]->SetLineColor(kWhite);
+    f1_hist[mult]->SetLineColor(kBlue);
     f1_hist[mult]->SetTitle(" ");
     f1_hist[mult]->SetStats(kFALSE);
     f1_hist[mult]->GetYaxis()->SetTitle("Fit/data");
@@ -455,14 +462,14 @@ void MinuitBlastWaveCMSdataFit(){
     f2_hist[mult]->SetMarkerStyle(20);
     f2_hist[mult]->SetMarkerColor(kBlack);
     f2_hist[mult]->SetMarkerSize(1.3);
-    f2_hist[mult]->SetLineColor(kWhite);
+    f2_hist[mult]->SetLineColor(kBlack);
     f2_hist[mult]->SetTitle(" ");
     f2_hist[mult]->SetStats(kFALSE);
     f2_hist[mult]->GetYaxis()->SetTitle("Fit/data");
     f2_hist[mult]->GetXaxis()->SetTitle("p^{}_{T} (GeV/c)");
     f2_hist[mult]->GetYaxis()->SetLabelSize(0.09);
     f2_hist[mult]->GetYaxis()->SetLabelOffset(0.025);
-    f2_hist[mult]->GetYaxis()->SetRangeUser(-10,40);
+    f2_hist[mult]->GetYaxis()->SetRangeUser(0.6,1.4);
     
     f1_hist[mult]->Draw("P");
     f2_hist[mult]->Draw("Psame");
@@ -532,7 +539,7 @@ void MinuitBlastWaveCMSdataFit(){
     f1_hist[mult]->SetMarkerStyle(20);
     f1_hist[mult]->SetMarkerColor(kBlue);
     f1_hist[mult]->SetMarkerSize(1.3);
-    f1_hist[mult]->SetLineColor(kWhite);
+    f1_hist[mult]->SetLineColor(kBlue);
     f1_hist[mult]->SetTitle(" ");
     f1_hist[mult]->SetStats(kFALSE);
     f1_hist[mult]->GetYaxis()->SetTitle("Fit/data");
@@ -550,14 +557,14 @@ void MinuitBlastWaveCMSdataFit(){
     f2_hist[mult]->SetMarkerStyle(20);
     f2_hist[mult]->SetMarkerColor(kBlack);
     f2_hist[mult]->SetMarkerSize(1.3);
-    f2_hist[mult]->SetLineColor(kWhite);
+    f2_hist[mult]->SetLineColor(kBlack);
     f2_hist[mult]->SetTitle(" ");
     f2_hist[mult]->SetStats(kFALSE);
     f2_hist[mult]->GetYaxis()->SetTitle("Fit/data");
     f2_hist[mult]->GetXaxis()->SetTitle("p^{}_{T} (GeV/c)");
     f2_hist[mult]->GetYaxis()->SetLabelSize(0.09);
     f2_hist[mult]->GetYaxis()->SetLabelOffset(0.025);
-    f2_hist[mult]->GetYaxis()->SetRangeUser(-10,40);
+    f2_hist[mult]->GetYaxis()->SetRangeUser(0.6,1.4);
     
     f1_hist[mult]->Draw("P");
     f2_hist[mult]->Draw("Psame");
@@ -570,6 +577,8 @@ void MinuitBlastWaveCMSdataFit(){
   TH1D* hist = new TH1D("h1","h1",100,0.2,0.7);
   hist->GetYaxis()->SetRangeUser(0.02,0.25);
   hist->GetXaxis()->SetRangeUser(0.2,0.7);
+  hist->SetYTitle("T^{}_{kin}(GeV)");
+  hist->SetXTitle("<#beta^{}_{T}>");
 
   TGraph* g = new TGraph(8);
 
@@ -577,38 +586,37 @@ void MinuitBlastWaveCMSdataFit(){
 
   for(mult = 0; mult < 8; mult++){
 
-    double temp = 0.0;
-    temp = beta_T(beta_s[mult],n[mult]);
-
-    g->SetPoint(mult,temp,Tkin[mult]);
+    g->SetPoint(mult,beta_T[mult],Tkin[mult]);
 
   }
 
   hist->Draw("P");
   g->Draw("Psame");
 
-  double ellipse_x[8][100];
-  double ellipse_y[8][100];
+
+  double ellipse_x[8][101];
+  double ellipse_y[8][101];
 
   for(mult = 0; mult < 8; mult++){
-
-    double temp = beta_T(beta_s[mult],n[mult]);
-    double shift = beta_s[mult]-temp;
 
     for(int i = 0; i < 100; i++){
 
         test[mult]->GetPoint(i,ellipse_x[mult][i],ellipse_y[mult][i]);
-        ellipse_x[mult][i] = ellipse_x[mult][i] - shift;
+     
     }   
+
+    ellipse_x[mult][100] = ellipse_x[mult][0];
+    ellipse_y[mult][100] = ellipse_y[mult][0];
+
   }
 
   TGraph* g1[8];
 
   for(mult = 0; mult < 8; mult++){
 
-    g1[mult] = new TGraph(100);
+    g1[mult] = new TGraph(101);
       
-      for(i = 0; i < 100; i++){
+      for(i = 0; i < 101; i++){
           
           g1[mult]->SetPoint(i,ellipse_x[mult][i],ellipse_y[mult][i]);
           g1[mult]->SetLineColor(kRed);
@@ -618,6 +626,17 @@ void MinuitBlastWaveCMSdataFit(){
 
       g1[mult]->Draw("same");
   }
+
+  TFile savefile("../files/CMSresutls_0.3_1.5.root","new");
+  g->Write();
+  for(mult = 0; mult < 8; mult++){
+
+    g1[mult]->Write();
+    f1_hist[mult]->Write();
+    f2_hist[mult]->Write();
+
+  }
+
 
 
 }
